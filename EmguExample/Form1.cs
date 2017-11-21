@@ -12,6 +12,7 @@ using Emgu.CV;
 using Emgu.CV.CvEnum;
 using Emgu.CV.Structure;
 using Emgu.CV.UI;
+using Emgu.CV.Util;
 
 namespace EmguExample
 {
@@ -24,100 +25,75 @@ namespace EmguExample
             InitializeComponent();
         }
 
+        private Thread t;
+
         private void Form1_Load(object sender, EventArgs e)
         {
-            capture.ImageGrabbed += OnCaptureOnImageGrabbed;
-
             // Start worker thread
-            Thread t = new Thread(ProcessImage);
+            t = new Thread(ProcessImage);
             t.Start();
-
-            // Start webcam
-            capture.Start();
         }
 
         private Image<Bgr, byte> img = null;
-        private bool frameAvailable = false;
+
         private void ProcessImage()
         {
             while (true)
             {
-                // If no frame available, wait
-                if (!frameAvailable)
-                {
-                    Thread.Sleep(1);
-                    continue;
-                }
-
-                // Read from webcams
+                // Read from webcam
                 Mat m = new Mat();                
                 capture.Read(m);
-                img = m.ToImage<Bgr, byte>();
-                
-                
+                img = m.Clone().ToImage<Bgr, byte>();
                 Image<Bgr, byte> tempImage = img.Clone();
 
-                Image<Hsv, byte> tempImageHsv = img.Convert<Hsv, byte>();
+                // Blur image to remove noise
+                tempImage = tempImage.SmoothGaussian(5);
 
-                // Create mask based on sliders
-                Image<Bgr, byte> mask = tempImageHsv[0].InRange(new Gray(hueMin), new Gray(hueMax)).Convert<Bgr, byte>();
-                mask &= tempImageHsv[1].InRange(new Gray(satMin), new Gray(satMax)).Convert<Bgr, byte>();
-                mask &= tempImageHsv[2].InRange(new Gray(valMin), new Gray(valMax)).Convert<Bgr, byte>();
+                // Threshold image to find regions
+                var greyImage = tempImage.Convert<Gray, byte>().ThresholdBinary(new Gray(100), new Gray(255));
+                VectorOfVectorOfPoint contours = new VectorOfVectorOfPoint();
 
-                // Remove noise from mask
-                mask = mask.Erode(3);
-                mask = mask.Dilate(3);
+                // Get points along edges
+                CvInvoke.FindContours(greyImage, contours, null, RetrType.List, ChainApproxMethod.ChainApproxSimple);
 
-                // Apply mask
-                tempImage &= mask;
-                
-                // Display output
+                // For debugging output
+                CvInvoke.DrawContours(tempImage, contours, -1, new MCvScalar(1,1,0), -1);
+
+
+                foreach (var contour in contours.ToArrayOfArray())
+                {
+                    VectorOfPoint poly = new VectorOfPoint();
+
+                    // Finds polygon of contour
+                    CvInvoke.ApproxPolyDP(new VectorOfPoint(contour), poly, CvInvoke.ArcLength(new VectorOfPoint(contour), true) * 0.05, true);
+                    
+                    // Draw corners
+                    foreach (var point in poly.ToArray())
+                    {
+                        tempImage.Draw(new CircleF(point, 2), new Bgr(255,255,0), -1 );
+                    }
+
+                    // Triangle
+                    if (poly.Size == 3)
+                    {
+                        // Paint it blue
+                        tempImage.FillConvexPoly(poly.ToArray(), new Bgr(255,0,0));
+                    }
+
+                }
+
+                // Update display
                 pictureBoxFilter.Image = tempImage.ToBitmap();
                 pictureBoxOriginal.Image = img.ToBitmap();
                 frameAvailable = false;
+                Thread.Sleep(1);
             }
-        }
 
-        private void OnCaptureOnImageGrabbed(object o, EventArgs args)
-        {
-            // Tell worker thread that we have something to process
-            frameAvailable = true;
         }
-
-        private byte hueMin = 0;
-        private byte hueMax = 180;
-        private byte satMin = 0;
-        private byte satMax = 100;
-        private byte valMin = 0;
-        private byte valMax = 100;
-        private void hueBarMin_Scroll(object sender, EventArgs e)
+        
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
-            hueMin = (byte)hueBarMin.Value;
-        }
-
-        private void hueBarMax_Scroll(object sender, EventArgs e)
-        {
-            hueMax = (byte)hueBarMax.Value;
-        }
-
-        private void satBarMin_Scroll(object sender, EventArgs e)
-        {
-            satMin= (byte)satBarMin.Value;
-        }
-
-        private void satBarMax_Scroll(object sender, EventArgs e)
-        {
-            satMax = (byte)satBarMax.Value;
-        }
-
-        private void valBarMin_Scroll(object sender, EventArgs e)
-        {
-            valMin = (byte)valBarMin.Value;
-        }
-
-        private void valBarMax_Scroll(object sender, EventArgs e)
-        {
-            valMax = (byte)valBarMax.Value;
+            t.Abort();
         }
     }
 }
