@@ -85,7 +85,6 @@ namespace EmguExample
                 // Update display
                 pictureBoxFilter.Image = tempImage.ToBitmap();
                 pictureBoxOriginal.Image = img.ToBitmap();
-                frameAvailable = false;
                 Thread.Sleep(1);
             }
 
