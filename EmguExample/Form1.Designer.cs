@@ -58,7 +58,7 @@
             this.Controls.Add(this.pictureBoxFilter);
             this.Controls.Add(this.pictureBoxOriginal);
             this.Name = "Form1";
-            this.Text = "Form1";
+            this.Text = "Emgu Example";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Form1_FormClosing);
             this.Load += new System.EventHandler(this.Form1_Load);
             ((System.ComponentModel.ISupportInitialize)(this.pictureBoxOriginal)).EndInit();
